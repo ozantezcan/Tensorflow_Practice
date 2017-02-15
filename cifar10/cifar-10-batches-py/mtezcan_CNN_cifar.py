@@ -2,7 +2,9 @@
 #mnist = input_data.read_data_sets('MNIST_data', one_hot=True)
 import tensorflow as tf
 import time
-sess = tf.InteractiveSession()
+
+config = tf.ConfigProto(device_count={'CPU': 1})
+sess = tf.InteractiveSession(config=config)
 
 batch_size=32
 
@@ -31,9 +33,9 @@ def _variable_on_cpu(name, shape, initializer):
   Returns:
     Variable Tensor
   """
-  with tf.device('/cpu:0'):
-    type = tf.float32
-    var = tf.get_variable(name, shape, initializer=initializer)
+  #with tf.device('/cpu:0'):
+  type = tf.float32
+  var = tf.get_variable(name, shape, initializer=initializer)
   return var
 
 
@@ -76,8 +78,8 @@ def copa(name,images,conv_shape,conv_srtride,pool_size,pool_stride,activation):
                                    shape=conv_shape,
                                    stddev=5e-2,
                                    wd=0.0)
-  #with tf.device('/gpu:1'):
-  conv = tf.nn.conv2d(images, kernel, [1, 1, 1, 1], padding='SAME')
+  with tf.device('/gpu:0'):
+    conv = tf.nn.conv2d(images, kernel, [1, 1, 1, 1], padding='SAME')
   biases = _variable_on_cpu(name+'_biases', conv_shape[3], tf.constant_initializer(0.0))
   pre_activation = tf.nn.bias_add(conv, biases)
   conv1 = tf.nn.relu(pre_activation)
@@ -116,7 +118,7 @@ def max_pool_2x2(x):
   return tf.nn.max_pool(x, ksize=[1, 2, 2, 1],
                         strides=[1, 2, 2, 1], padding='SAME')
 
-max_step = 1000000
+max_step = 10000000
 
 x = tf.placeholder(tf.float32, shape=[None, 32,32,3])
 #x = tf.placeholder(tf.float32, shape=[None, 784])
@@ -185,13 +187,18 @@ for i in range(max_step):
     #batch = mnist.train.next_batch(batch_size)
     batch_img, batch_label,idx_count = next_batch(train_img,train_label_oneHot,idx_count)
     if i%100 == 0:
-      train_accuracy = accuracy.eval(feed_dict={
-          x:batch_img, y_: batch_label, keep_prob: 1.0})
-      print("step %d, idx %d, training accuracy %g(%.3f sec/batch=%d images)"%(i,  idx_count,     train_accuracy,duration,batch_size))
+      f = open('cifar_CNN_train.out', 'a')
+      train_accuracy = accuracy.eval(feed_dict={x:batch_img, y_: batch_label, keep_prob: 1.0})
+      train_cross_entropy = cross_entropy.eval(feed_dict={x:batch_img, y_: batch_label, keep_prob: 1.0})
+      #print("step %d, idx %d, training accuracy %g, cross entropy is %g(%.3f sec/batch=%d images)"
+      #%(i,  idx_count,     train_accuracy,train_cross_entropy,duration,batch_size))
+      f.write("step %d, idx %d, training accuracy %g, cross entropy is %g(%.3f sec/batch=%d images) \n"%(i,  idx_count,     train_accuracy,train_cross_entropy,duration,batch_size))
     if i%1000 == 0:
-      test_accuracy = accuracy.eval(feed_dict={
-          x:test_img[:1500,:], y_: test_label_oneHot[:1500,:], keep_prob: 1.0})
-      print("STEP %d, TEST ACCURACY %g"%(i, test_accuracy))
+      f = open('cifar_CNN_test.out', 'a')
+      test_accuracy = accuracy.eval(feed_dict={x:test_img[:1500,:], y_: test_label_oneHot[:1500,:], keep_prob: 1.0})
+      test_cross_entropy = cross_entropy.eval(feed_dict={x:test_img[:1500,:], y_: test_label_oneHot[:1500,:], keep_prob: 1.0})
+      #print("STEP %d, TEST ACCURACY %g,CROSS ENTROPY %g"%(i, test_accuracy))
+      f.write("STEP %d, TEST ACCURACY %g,CROSS ENTROPY %g \n"%(i, test_accuracy,test_cross_entropy))
     time_start = time.time()
     train_step.run(feed_dict={x: batch_img, y_: batch_label, keep_prob: 1.0})
     duration = time.time()-time_start

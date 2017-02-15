@@ -30,5 +30,7 @@ test_img = train_data['data'].reshape(10000,3,32,32).transpose(0,2,3,1)
 test_label = np.asarray(train_data['labels'])
 test_label_oneHot=toOneHot(test_label)
 
-  
+train_img=train_img.astype(np.float32)/255
+test_img=test_img.astype(np.float32)/255
+
 
