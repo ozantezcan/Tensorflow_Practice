@@ -2721,3 +2721,6 @@ step 271900, idx 48064, training accuracy 0.96875, cross entropy is 0.0722621(0.
 step 272000, idx 1248, training accuracy 1, cross entropy is 0.00120697(0.017 sec/batch=32 images) 
 step 272100, idx 4448, training accuracy 0.96875, cross entropy is 0.0721755(0.016 sec/batch=32 images) 
 step 272200, idx 7648, training accuracy 1, cross entropy is 6.73194e-05(0.016 sec/batch=32 images) 
+step 0, idx 32, training accuracy 0.0625, cross entropy is 2.39961(0.000 sec/batch=32 images) 
+step 100, idx 3232, training accuracy 0.21875, cross entropy is 2.16453(0.012 sec/batch=32 images) 
+step 200, idx 6432, training accuracy 0.3125, cross entropy is 2.12523(0.011 sec/batch=32 images) 
