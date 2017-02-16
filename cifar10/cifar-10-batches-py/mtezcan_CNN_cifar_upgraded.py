@@ -66,7 +66,7 @@ def _variable_with_weight_decay(name, shape, stddev, wd):
       shape,
       tf.truncated_normal_initializer(stddev=stddev))
   if wd is not None:
-    weight_decay = tf.mul(tf.nn.l2_loss(var), wd, name='weight_loss')
+    weight_decay = tf.multiply(tf.nn.l2_loss(var), wd, name='weight_loss')
     tf.add_to_collection('losses', weight_decay)
   return var
 
@@ -83,6 +83,7 @@ def copa(name,images,conv_shape,conv_srtride,pool_size,pool_stride,activation):
                                    shape=conv_shape,
                                    stddev=5e-2,
                                    wd=0.0)
+  #with tf.device('/gpu:0'):
   conv = tf.nn.conv2d(images, kernel, [1, 1, 1, 1], padding='SAME')
   biases = _variable_on_cpu(name+'_biases', conv_shape[3], tf.constant_initializer(0.0))
   pre_activation = tf.nn.bias_add(conv, biases)
@@ -124,9 +125,9 @@ def max_pool_2x2(x):
 
 max_step = 10000000
 
-x = tf.placeholder(tf.float32, shape=[None, 4096])
+x = tf.placeholder(tf.float32, shape=[None, 32,32,3])
 #x = tf.placeholder(tf.float32, shape=[None, 784])
-y_ = tf.placeholder(tf.float32, shape=[None, 9])
+y_ = tf.placeholder(tf.float32, shape=[None, 10])
 
 ##First Convolutional layer
 #W_conv1 = weight_variable([5, 5, 1, 32])
@@ -161,40 +162,24 @@ y_ = tf.placeholder(tf.float32, shape=[None, 9])
 #y_conv = tf.matmul(h_fc1_drop, W_fc2) + b_fc2
 
 idx_count = 0
-execfile('mat2py.py')
-train_img = fvec_shuffle[:1000,:]
-train_img = train_img/np.amax(train_img)
-train_label_oneHot = label_oneHot_shuffle[:1000,:]
-train_label = label_shuffle[:1000]
-test_img = fvec_shuffle[1000:,:]
-test_img = test_img/np.amax(train_img)
-test_label_oneHot = label_oneHot_shuffle[1000:,:]
-test_label = label_shuffle[1000:]
-
-#h_conv1 = copa('conv1',x_image,[5, 5, 3, 64],[1,1,1,1],[1,3,3,1],[1,2,2,1],0)
-#h_conv2 = copa('conv2',h_conv1,[5, 5, 64,64],[1,1,1,1],[1,3,3,1],[1,2,2,1],0)
-#h_conv2_flat = tf.reshape(h_conv2, [-1, 4096])
-#h_fc1 = linpa('fc1',x,4096)
-h_fc2 = linpa('fc2',x,1024)
+execfile('cifar10_read.py')
+x_image = x#tf.reshape(x, [-1,28,28,1])
+h_conv1 = copa('conv1',x_image,[5, 5, 3, 64],[1,1,1,1],[1,3,3,1],[1,2,2,1],0)
+h_conv2 = copa('conv2',h_conv1,[5, 5, 64,64],[1,1,1,1],[1,3,3,1],[1,2,2,1],0)
+h_conv2_flat = tf.reshape(h_conv2, [-1, 4096])
+h_fc3 = linpa('fc3',h_conv2_flat,1024)
 keep_prob = tf.placeholder(tf.float32)
-h_fc2_drop = tf.nn.dropout(h_fc2, keep_prob)
-h_soft = linpa('softmax',h_fc2_drop,9)
+h_fc3_drop = tf.nn.dropout(h_fc3, keep_prob)
+h_fc4 = linpa('fc4',h_fc3_drop,10)
 
-y_conv=h_soft
+y_conv=h_fc4
 
-y_label = tf.cast(tf.argmax(y_,1),tf.float32)
-y_conv_label = tf.cast(tf.argmax(y_conv,1),tf.float32)
 #Train
-cross_entropy = tf.reduce_mean(tf.squared_difference(y_label,y_conv_label))
-#cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(y_conv, y_))
+cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=y_conv, labels=y_))
 train_step = tf.train.AdamOptimizer(1e-4).minimize(cross_entropy)
 
 correct_prediction = tf.equal(tf.argmax(y_conv,1), tf.argmax(y_,1))
-cir1_prediction = tf.cast(tf.equal(tf.argmax(y_conv,1), tf.argmax(y_,1)-1),tf.float32) +\
-tf.cast(tf.equal(tf.argmax(y_conv,1), tf.argmax(y_,1)),tf.float32) +\
-tf.cast(tf.equal(tf.argmax(y_conv,1), tf.argmax(y_,1)+1),tf.float32)
 accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-cir1_accuracy = tf.reduce_mean(tf.cast(cir1_prediction, tf.float32))
 #accuracy = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
 #      labels=tf.cast(correct_prediction, tf.int64), logits=y_, name='cross_entropy_per_example'))
 sess.run(tf.global_variables_initializer())
@@ -207,25 +192,21 @@ for i in range(max_step):
   if i%100 == 0:
     f = open('cifar_CNN_train.out', 'a')
     train_accuracy = accuracy.eval(feed_dict={x:batch_img, y_: batch_label, keep_prob: 1.0})
-    train_cir1 = cir1_accuracy.eval(feed_dict={x:batch_img, y_: batch_label, keep_prob: 1.0})
     train_cross_entropy = cross_entropy.eval(feed_dict={x:batch_img, y_: batch_label, keep_prob: 1.0})
     if(console_):
-      print("step %d, idx %d, training accuracy %g,CIR-1 %g, cross entropy is %g(%.3f sec/batch=%d images)"
-      %(i,  idx_count,     train_accuracy,train_cir1,train_cross_entropy,duration,batch_size))
-      y_batch = np.argmax(y_conv.eval(feed_dict={x:batch_img, y_: batch_label, keep_prob: 1.0}),axis=1)
-      #print(y_batch)
+      print("step %d, idx %d, training accuracy %g, cross entropy is %g(%.3f sec/batch=%d images)"
+      %(i,  idx_count,     train_accuracy,train_cross_entropy,duration,batch_size))
     else:
-      f.write("step %d, idx %d, training accuracy %CIR-1 %g,cross entropy is %g(%.3f sec/batch=%d images) \n"
-      %(i,  idx_count,     train_accuracy,train_cir1,train_cross_entropy,duration,batch_size))
+      f.write("step %d, idx %d, training accuracy %g, cross entropy is %g(%.3f sec/batch=%d images) \n"
+      %(i,  idx_count,     train_accuracy,train_cross_entropy,duration,batch_size))
   if i%1000 == 0:
     f = open('cifar_CNN_test.out', 'a')
     test_accuracy = accuracy.eval(feed_dict={x:test_img[:1500,:], y_: test_label_oneHot[:1500,:], keep_prob: 1.0})
-    test_cir1 = cir1_accuracy.eval(feed_dict={x:test_img[:1500,:], y_: test_label_oneHot[:1500,:], keep_prob: 1.0})
     test_cross_entropy = cross_entropy.eval(feed_dict={x:test_img[:1500,:], y_: test_label_oneHot[:1500,:], keep_prob: 1.0})
     if(console_):
-      print("STEP %d, TEST ACCURACY %g,CIR-1 %g, CROSS ENTROPY %g"%(i, test_accuracy,test_cir1,test_cross_entropy))
+      print("STEP %d, TEST ACCURACY %g,CROSS ENTROPY %g"%(i, test_accuracy,test_cross_entropy))
     else:
-      f.write("STEP %d, TEST ACCURACY %g,CIR-1 %g,CROSS ENTROPY %g \n"%(i, test_accuracy,test_cir1,test_cross_entropy))
+      f.write("STEP %d, TEST ACCURACY %g,CROSS ENTROPY %g \n"%(i, test_accuracy,test_cross_entropy))
   time_start = time.time()
   train_step.run(feed_dict={x: batch_img, y_: batch_label, keep_prob: 1.0})
   duration = time.time()-time_start

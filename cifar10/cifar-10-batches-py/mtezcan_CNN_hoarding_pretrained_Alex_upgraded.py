@@ -66,7 +66,7 @@ def _variable_with_weight_decay(name, shape, stddev, wd):
       shape,
       tf.truncated_normal_initializer(stddev=stddev))
   if wd is not None:
-    weight_decay = tf.mul(tf.nn.l2_loss(var), wd, name='weight_loss')
+    weight_decay = tf.multiply(tf.nn.l2_loss(var), wd, name='weight_loss')
     tf.add_to_collection('losses', weight_decay)
   return var
 
@@ -182,11 +182,11 @@ h_soft = linpa('softmax',h_fc2_drop,9)
 
 y_conv=h_soft
 
-y_label = tf.cast(tf.argmax(y_,1),tf.float32)
-y_conv_label = tf.cast(tf.argmax(y_conv,1),tf.float32)
+#y_label = tf.cast(tf.argmax(y_,1),tf.float32)
+#y_conv_label = tf.cast(tf.argmax(y_conv,1),tf.float32)
 #Train
-cross_entropy = tf.reduce_mean(tf.squared_difference(y_label,y_conv_label))
-#cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(y_conv, y_))
+#cross_entropy = tf.reduce_mean(tf.squared_difference(y_label,y_conv_label))
+cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=y_conv, labels=y_))
 train_step = tf.train.AdamOptimizer(1e-4).minimize(cross_entropy)
 
 correct_prediction = tf.equal(tf.argmax(y_conv,1), tf.argmax(y_,1))
